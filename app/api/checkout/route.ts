@@ -41,6 +41,30 @@ export async function POST(req: NextRequest) {
       mode: 'payment',
       discounts,
       shipping_address_collection: { allowed_countries: ['CA'] },
+      shipping_options: [
+        {
+          shipping_rate_data: {
+            type: 'fixed_amount',
+            fixed_amount: { amount: 999, currency: 'cad' },
+            display_name: 'Canada Post – Standard',
+            delivery_estimate: {
+              minimum: { unit: 'business_day', value: 3 },
+              maximum: { unit: 'business_day', value: 7 },
+            },
+          },
+        },
+        {
+          shipping_rate_data: {
+            type: 'fixed_amount',
+            fixed_amount: { amount: 1499, currency: 'cad' },
+            display_name: 'Purolator – Express',
+            delivery_estimate: {
+              minimum: { unit: 'business_day', value: 1 },
+              maximum: { unit: 'business_day', value: 2 },
+            },
+          },
+        },
+      ],
       success_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/#shop`,
       metadata: { store: 'Plenish Beginning' },
