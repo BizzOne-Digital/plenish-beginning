@@ -34,10 +34,16 @@ export async function POST(req: NextRequest) {
       }),
     });
 
-    const data = await res.json();
+    const raw = await res.text();
+    let data: any;
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      data = { message: raw };
+    }
 
     if (!res.ok) {
-      console.error('Clover error:', data);
+      console.error('Clover error:', res.status, raw);
       return NextResponse.json({ error: data?.message || 'Clover checkout failed' }, { status: res.status });
     }
 
