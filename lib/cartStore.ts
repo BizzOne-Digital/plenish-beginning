@@ -131,7 +131,7 @@ export const PRODUCTS: Product[] = [
   {
     id: 'red-onion-dried',
     name: 'Red Onion Powder',
-    price: 1.99,
+    price: 4.98,
     size: '70g',
     image: '/newp7.png',
     description: 'Pure, clean, dried red onion powder with intense flavor.',

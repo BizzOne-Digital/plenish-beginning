@@ -1,78 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder', {
-  apiVersion: '2026-07-29.dahlia',
-});
+const CLOVER_MERCHANT_ID = process.env.CLOVER_MERCHANT_ID!;
+const CLOVER_API_TOKEN = process.env.CLOVER_API_TOKEN!;
+const CLOVER_API_BASE = process.env.CLOVER_API_BASE || 'https://api.clover.com';
 
 export async function POST(req: NextRequest) {
   try {
     const { items } = await req.json();
 
     const lineItems = items.map((item: any) => ({
-      price_data: {
-        currency: 'cad',
-        product_data: {
-          name: item.name,
-          description: `${item.size} – Salt-Free, Non-GMO, MSG-Free`,
-          images: [item.image],
-          metadata: { brand: 'Plenish Beginning' },
-        },
-        unit_amount: Math.round(item.price * 100),
-      },
-      quantity: item.quantity,
+      name: `${item.name} (${item.size})`,
+      price: Math.round(item.price * 100),
+      unitQty: item.quantity,
     }));
 
-    // Apply discount via coupon if applicable
     const subtotal = items.reduce((s: number, i: any) => s + i.price * i.quantity, 0);
-    let discounts: any[] = [];
-    
     if (subtotal >= 100) {
-      const coupon = await stripe.coupons.create({ percent_off: 10, duration: 'once' });
-      discounts = [{ coupon: coupon.id }];
+      lineItems.push({ name: 'Discount (10%)', price: -Math.round(subtotal * 0.10 * 100), unitQty: 1 });
     } else if (subtotal >= 50) {
-      const coupon = await stripe.coupons.create({ percent_off: 5, duration: 'once' });
-      discounts = [{ coupon: coupon.id }];
+      lineItems.push({ name: 'Discount (5%)', price: -Math.round(subtotal * 0.05 * 100), unitQty: 1 });
     }
 
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: lineItems,
-      mode: 'payment',
-      discounts,
-      shipping_address_collection: { allowed_countries: ['CA'] },
-      shipping_options: [
-        {
-          shipping_rate_data: {
-            type: 'fixed_amount',
-            fixed_amount: { amount: 999, currency: 'cad' },
-            display_name: 'Canada Post – Standard',
-            delivery_estimate: {
-              minimum: { unit: 'business_day', value: 3 },
-              maximum: { unit: 'business_day', value: 7 },
-            },
-          },
-        },
-        {
-          shipping_rate_data: {
-            type: 'fixed_amount',
-            fixed_amount: { amount: 1499, currency: 'cad' },
-            display_name: 'Purolator – Express',
-            delivery_estimate: {
-              minimum: { unit: 'business_day', value: 1 },
-              maximum: { unit: 'business_day', value: 2 },
-            },
-          },
-        },
-      ],
-      success_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/#shop`,
-      metadata: { store: 'Plenish Beginning' },
+    const res = await fetch(`${CLOVER_API_BASE}/invoicingcheckoutservice/v1/checkouts`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'X-Clover-Merchant-Id': CLOVER_MERCHANT_ID,
+        Authorization: `Bearer ${CLOVER_API_TOKEN}`,
+      },
+      body: JSON.stringify({
+        shoppingCart: { lineItems },
+      }),
     });
 
-    return NextResponse.json({ url: session.url });
+    const data = await res.json();
+
+    if (!res.ok) {
+      console.error('Clover error:', data);
+      return NextResponse.json({ error: data?.message || 'Clover checkout failed' }, { status: res.status });
+    }
+
+    return NextResponse.json({ url: data.href });
   } catch (err: any) {
-    console.error('Stripe error:', err);
+    console.error('Clover checkout error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
