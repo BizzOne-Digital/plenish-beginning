@@ -30,6 +30,7 @@ export async function POST(req: NextRequest) {
         Authorization: `Bearer ${CLOVER_API_TOKEN}`,
       },
       body: JSON.stringify({
+        customer: {},
         shoppingCart: { lineItems },
       }),
     });
