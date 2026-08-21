@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useCartStore, PRODUCTS, Product } from '@/lib/cartStore';
 import Reveal from './Reveal';
 
@@ -7,10 +7,18 @@ export default function Shop() {
   const { addItem, toggleCart } = useCartStore();
   const [added, setAdded] = useState<string | null>(null);
   const [filter, setFilter] = useState('All');
+  const [products, setProducts] = useState<Product[]>(PRODUCTS);
+
+  useEffect(() => {
+    fetch('/api/products')
+      .then((res) => res.json())
+      .then((data) => { if (data.products?.length) setProducts(data.products); })
+      .catch(() => {});
+  }, []);
 
   const filters = ['All', '30g Bags', '70-80g Bags', 'Caribbean'];
 
-  const filtered = PRODUCTS.filter(p => {
+  const filtered = products.filter(p => {
     if (filter === '30g Bags') return p.size === '30g';
     if (filter === '70-80g Bags') return p.size === '80g' || p.size === '70g';
     if (filter === 'Caribbean') return p.badge === 'Caribbean';

@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { connectDB } from '@/lib/mongodb';
+import Order from '@/models/Order';
 
 const CLOVER_MERCHANT_ID = process.env.CLOVER_MERCHANT_ID!;
 const CLOVER_API_TOKEN = process.env.CLOVER_API_TOKEN!;
@@ -15,6 +17,7 @@ export async function POST(req: NextRequest) {
     }));
 
     const subtotal = items.reduce((s: number, i: any) => s + i.price * i.quantity, 0);
+    const discount = subtotal >= 100 ? subtotal * 0.10 : subtotal >= 50 ? subtotal * 0.05 : 0;
     if (subtotal >= 100) {
       lineItems.push({ name: 'Discount (10%)', price: -Math.round(subtotal * 0.10 * 100), unitQty: 1 });
     } else if (subtotal >= 50) {
@@ -46,6 +49,21 @@ export async function POST(req: NextRequest) {
     if (!res.ok) {
       console.error('Clover error:', res.status, raw);
       return NextResponse.json({ error: data?.message || 'Clover checkout failed' }, { status: res.status });
+    }
+
+    try {
+      await connectDB();
+      await Order.create({
+        checkoutSessionId: data.checkoutSessionId,
+        items: items.map((i: any) => ({ productId: i.id, name: i.name, price: i.price, quantity: i.quantity, image: i.image })),
+        subtotal,
+        discount,
+        total: subtotal - discount,
+        status: 'pending',
+      });
+    } catch (dbErr) {
+      // Don't block checkout if the DB is unreachable/unconfigured - just log it
+      console.error('Order record failed:', dbErr);
     }
 
     return NextResponse.json({ url: data.href });
